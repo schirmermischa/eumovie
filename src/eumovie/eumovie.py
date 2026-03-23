@@ -114,7 +114,15 @@ import subprocess
 import sys
 import threading
 import numpy as np
-import cupy as cp
+try:
+    import cupy as cp
+except ImportError:
+    print("\nERROR: CuPy is not installed or your CUDA toolkit is not found.")
+    print("Install CuPy matching your CUDA version, e.g.:")
+    print("  pip install cupy-cuda12x   # for CUDA 12.x")
+    print("  pip install cupy-cuda13x   # for CUDA 13.x")
+    print("See https://docs.cupy.dev/en/stable/install.html")
+    import sys; sys.exit(1)
 import cv2
 import tifffile
 from scipy.interpolate import CubicSpline, PchipInterpolator
@@ -773,19 +781,37 @@ def main():
 
     # ── Initialise GPU ─────────────────────────────────────────────────────────
     try:
-        if cp.cuda.runtime.getDeviceCount() == 0:
-            raise RuntimeError("No CUDA devices found.")
+        n_devices = cp.cuda.runtime.getDeviceCount()
+        if n_devices == 0:
+            print("\nERROR: No CUDA-capable GPU found.")
+            print("eumovie requires an NVIDIA GPU with CUDA support.")
+            print("See the installation guide: https://eumovie.readthedocs.io/installation")
+            sys.exit(1)
         dev = cp.cuda.Device(0)
         dev.use()
+        mem_free  = dev.mem_info[0] / 1024**3
         mem_total = dev.mem_info[1] / 1024**3
-        print(f"Using GPU 0  ({mem_total:.1f} GB VRAM)")
+        print(f"Using GPU 0  ({mem_total:.1f} GB VRAM, {mem_free:.1f} GB free)")
+        if mem_total < 4.0:
+            print(f"  Warning: GPU has only {mem_total:.1f} GB VRAM. "
+                  "eumovie works best with 8 GB or more. "
+                  "Large images or fulldome 8K may run out of memory.")
+    except cp.cuda.runtime.CUDARuntimeError as e:
+        print(f"\nERROR: CUDA runtime error during GPU initialisation: {e}")
+        print("Check that your NVIDIA drivers are installed and up to date.")
+        print("  nvidia-smi   — should show your GPU")
+        print("  nvcc --version — should show the CUDA toolkit version")
+        sys.exit(1)
     except Exception as e:
-        print(f"CUDA error: {e}")
+        print(f"\nERROR: Unexpected error during GPU initialisation: {e}")
         sys.exit(1)
 
     has_cv2_cuda = hasattr(cv2, 'cuda') and cv2.cuda.getCudaEnabledDeviceCount() > 0
     if not has_cv2_cuda:
-        print("ERROR: cv2.cuda not available. This script requires OpenCV built with CUDA support.")
+        print("\nERROR: OpenCV was not built with CUDA support.")
+        print("The standard 'pip install opencv-python' package does not include CUDA.")
+        print("You must build OpenCV from source with -DWITH_CUDA=ON.")
+        print("See the installation guide: https://eumovie.readthedocs.io/installation")
         sys.exit(1)
     print("cv2.cuda available — full GPU pipeline active.")
 
