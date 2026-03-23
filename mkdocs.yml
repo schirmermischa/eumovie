@@ -1,0 +1,39 @@
+site_name: eumovie
+site_description: GPU-accelerated movie renderer for Euclid MER TIFF images
+site_author: Mischa Schirmer
+site_url: https://eumovie.readthedocs.io
+
+repo_url: https://github.com/schirmermischa/eumovie
+repo_name: schirmermischa/eumovie
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: cyan
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quick start: quickstart.md
+  - Keyframes: keyframes.md
+  - Command-line options: options.md
+  - Fulldome: fulldome.md
+  - Technical notes: technical.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true

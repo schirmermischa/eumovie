@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eumovie"
+version = "1.0.0"
+authors = [
+  { name="Mischa Schirmer", email="schirmer@mpia.de" },
+]
+description = "GPU-accelerated movie renderer for Euclid MER TIFF images"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT License"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Intended Audience :: Science/Research",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "tifffile",
+    # cupy, opencv-python (CUDA build), and ffmpeg must be installed manually —
+    # they require CUDA toolkit and custom builds not available on PyPI.
+]
+
+[project.urls]
+Homepage = "https://eumovie.readthedocs.io"
+Repository = "https://github.com/schirmermischa/eumovie"
+Issues = "https://github.com/schirmermischa/eumovie/issues"
+Documentation = "https://eumovie.readthedocs.io"
+
+[project.scripts]
+eumovie = "eumovie.eumovie:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+eumovie = ["keyframes_default.py"]

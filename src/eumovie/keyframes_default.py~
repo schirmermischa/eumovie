@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# keyframes.py — Camera path configuration for eumovie
+#
+# This file defines the camera paths for your tiles. Add one entry per tile,
+# using the tile's filename (without extension) as the key.
+#
+# eumovie searches for keyframes.py in this order:
+#   1. ./keyframes.py                   — current directory (highest priority)
+#   2. ~/.config/eumovie/keyframes.py   — your personal tile library
+#
+# Place this file next to your TIFF for a per-tile override, or add entries
+# to ~/.config/eumovie/keyframes.py to build up a library across all your tiles.
+#
+# ── Image coordinate system ───────────────────────────────────────────────────
+#
+# cx and cy are given in FITS pixel coordinates:
+#   - Origin (0, 0) is at the LOWER-LEFT corner of the image
+#   - cx increases toward the RIGHT
+#   - cy increases UPWARD
+#
+# This is the standard used by DS9, FITS headers, and most astronomy tools.
+# It is the OPPOSITE of TIFF/screen coordinates (origin at upper-left, y downward).
+# eumovie converts internally — you never need to worry about the flip.
+#
+# To find cx, cy for a feature of interest:
+#   - Open the TIFF in DS9, set coordinates to "Image"
+#   - Hover over the feature and read off x, y
+#   - Use those directly as cx, cy here
+#
+# ── Keyframe tuple format ─────────────────────────────────────────────────────
+#
+#   (t, cx, cy, zoom, angle, tilt, bank)
+#
+#   t     : time in seconds
+#   cx,cy : centre of view in FITS pixel coordinates (see above)
+#   zoom  : fraction of the image short-axis that is visible
+#             1.0          = entire image fits in frame (fully zoomed out)
+#             zoom_native  = 1:1 pixel mapping (native resolution)
+#             e.g. 0.5     = half the image height is visible
+#   angle : ROLL — in-plane rotation around the optical axis (degrees, CCW positive)
+#   tilt  : PITCH — camera pitches backward (degrees)
+#             0   = straight down, no perspective distortion
+#             +10 = upper screen edge recedes/compresses ("leaning backward")
+#   bank  : BANK — camera banks left (degrees)
+#             0   = straight down, no perspective distortion
+#             +10 = right side recedes/compresses ("banking left in flight")
+#
+#   tilt and bank are always relative to the current roll angle.
+#   Set CAMERA_FOV in eumovie.py to control the strength of the perspective effect.
+#
+# ── zoom_native ───────────────────────────────────────────────────────────────
+#
+#   zoom_native is computed automatically as max(out_w/img_w, out_h/img_h).
+#   It is the zoom at which one source pixel = one output pixel.
+#   Use it as a reference: zoom_native*0.7 = 70% of native resolution.
+#
+# ── Example ───────────────────────────────────────────────────────────────────
+#
+# The example below is for TILE123456789, a Euclid MER tile containing
+# the planetary nebula PK 243-37. The camera starts near the top of the tile
+# and pans diagonally while rotating, passing through the nebula.
+#
+# To adapt it for your tile:
+#   1. Copy the function and rename it to match your tile filename
+#   2. Replace cx, cy coordinates with positions from your image (use DS9)
+#   3. Adjust zoom, angle, tilt, bank to taste
+#   4. Add the new function to TILE_CONFIGS at the bottom of this file
+
+import numpy as np
+
+
+def make_circle(cx, cy, radius, zoom, start_t, duration, n_points=8):
+    """
+    Generate keypoints for a counter-clockwise circular camera orbit.
+
+    Parameters
+    ----------
+    cx, cy    : centre of the circle in FITS pixel coordinates
+    radius    : radius in pixels
+    zoom      : zoom level to hold throughout the orbit
+    start_t   : start time in seconds
+    duration  : total duration in seconds
+    n_points  : number of keypoints (default 8)
+
+    Returns a list of (t, px, py, zoom, 0.0, 0.0, 0.0) tuples.
+    """
+    points = []
+    for i in range(n_points + 1):   # +1 closes the loop
+        angle_rad = 2 * np.pi * i / n_points
+        px = cx + radius * np.cos(angle_rad)
+        py = cy - radius * np.sin(angle_rad)
+        t  = start_t + duration * i / n_points
+        points.append((t, px, py, zoom, 0.0, 0.0, 0.0))
+    return points
+
+
+# ── Tile configurations ───────────────────────────────────────────────────────
+
+def _make_TILE123456789(zoom_native):
+    """
+    Camera path for TILE123456789 — Euclid MER tile with planetary nebula
+    PK 243-37. Pans diagonally while rotating, visiting the nebula and surrounding
+    field. All coordinates in FITS pixels (origin at lower-left).
+    """
+    X0, Y0 = 12850, 16730   # starting position
+    X1, Y1 = 12490, 17400
+    X2, Y2 = 11880, 17880
+    X3, Y3 = 11173, 18152   # PK 243-37 planetary nebula
+    X4, Y4 = 10460, 18300
+    X5, Y5 =  9820, 18400   # end position
+
+    return {
+        'keyframes': [
+            # t      cx    cy    zoom              angle  tilt  bank
+            ( 0.0,  X0,  Y0,  zoom_native*1.0,    0,     0,    0),
+            ( 5.0,  X1,  Y1,  zoom_native*0.9,   -4,     0,    0),
+            (10.0,  X2,  Y2,  zoom_native*0.8,   -9,     0,    0),
+            (14.0,  X3,  Y3,  zoom_native*0.7,  -19,     0,    0),  # nebula
+            (17.0,  X4,  Y4,  zoom_native*0.65, -26,     0,    0),
+            (20.0,  X5,  Y5,  zoom_native*0.6,  -35,     0,    0),
+        ]
+    }
+
+
+# ── Registry ──────────────────────────────────────────────────────────────────
+# Map tile filename (without extension) → configuration function.
+# Add your own entries here.
+
+TILE_CONFIGS = {
+    'TILE123456789': _make_TILE123456789,
+}
+
+
+def get_config(tile_id, zoom_native):
+    """
+    Look up the camera path for a tile.
+
+    Parameters
+    ----------
+    tile_id     : tile filename without extension, e.g. 'TILE123456789'
+    zoom_native : zoom for 1:1 pixel mapping, computed from output resolution
+
+    Raises KeyError with instructions if the tile is not found.
+    """
+    if tile_id not in TILE_CONFIGS:
+        available = ', '.join(sorted(TILE_CONFIGS.keys()))
+        raise KeyError(
+            f"\nNo keyframe config found for '{tile_id}'.\n"
+            f"Tiles defined in this keyframes.py: {available or '(none yet)'}\n\n"
+            f"Add a camera path by defining a function and registering it:\n\n"
+            f"    def _make_{tile_id}(zoom_native):\n"
+            f"        return {{'keyframes': [\n"
+            f"            # (t,  cx,   cy,   zoom,          angle, tilt, bank)\n"
+            f"            (0.0,  cx0,  cy0,  1.0,           0,     0,    0),\n"
+            f"            (5.0,  cx1,  cy1,  zoom_native,   0,     0,    0),\n"
+            f"        ]}}\n\n"
+            f"    TILE_CONFIGS['{tile_id}'] = _make_{tile_id}\n\n"
+            f"cx/cy are in FITS pixel coordinates (origin at lower-left, y upward).\n"
+        )
+    return TILE_CONFIGS[tile_id](zoom_native)
