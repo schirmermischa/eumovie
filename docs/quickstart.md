@@ -80,6 +80,8 @@ Output files are placed in the same directory as the input TIFF:
 
 - Start with `--fps 30` for testing — renders twice as fast as `--fps 60`
 - Use `--cq 18` for quick drafts (smaller file, slightly lower quality)
+- Use `--zoom 1.2` to zoom in 20% without editing `keyframes.py`
+- Use `--speed 0.5` to slow the movie to half speed, `--speed 2.0` to double it
 - For very large images (≥19200×19200), check available VRAM before rendering
   at 8K fulldome — see [Technical notes](technical.md)
 - If your tile is not found, check that the tile filename (without extension)

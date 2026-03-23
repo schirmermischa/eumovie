@@ -107,6 +107,17 @@ resolution you choose. Keyframe zoom values expressed as multiples of
 `zoom_native` are therefore **resolution-independent** — the same keyframe
 produces the same field of view at 1080p or 4K.
 
+!!! tip "Quick zoom adjustment"
+    Use `--zoom X` on the command line to scale all keyframe zoom values
+    without editing `keyframes.py`. `--zoom 1.2` gives 20% more magnification;
+    `--zoom 0.8` gives a wider field of view. Keyframe zoom values are divided
+    by this factor.
+
+!!! tip "Quick speed adjustment"
+    Use `--speed X` to scale all keyframe timestamps without editing `keyframes.py`.
+    `--speed 2.0` plays at twice the speed; `--speed 0.5` plays at half speed.
+    Keyframe timestamps are divided by this factor.
+
 ## Adding a tile
 
 Open `~/.config/eumovie/keyframes.py` and add a function following this pattern:

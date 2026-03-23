@@ -3,8 +3,9 @@
 #
 # eumovie.py - A program to create a movie from Euclid MER stacks (or any still TIFF image)
 
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Mischa Schirmer
+# MIT License
+
+# Copyright (c) [2026] [Mischa Schirmer]
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -43,17 +44,26 @@
 #   ffmpeg (system, with h264_nvenc / hevc_nvenc hardware encoders)
 #
 # ── Usage ─────────────────────────────────────────────────────────────────────
-#   Flat output (default 2000×2000, h264_nvenc):
-#     python eumovie.py --input TILE.tif [--width 3840] [--height 2160] [--fps 60] [--cq 15]
+#   Generate keyframes template (first-time setup):
+#     eumovie --generate-keyframes
+#
+#   Flat output (default 1920×1080, h264_nvenc):
+#     eumovie --input TILE.tif [--resolution 2k|4k|WxH] [--fps 60] [--cq 15]
+#
+#   Flat output with zoom modifier (20% more magnification):
+#     eumovie --input TILE.tif --zoom 1.2
+#
+#   Flat output at half speed:
+#     eumovie --input TILE.tif --speed 0.5
 #
 #   Flat output, ProRes 4444 master:
-#     python eumovie.py --input TILE.tif --width 3840 --height 2160 --prores [--bits-per-mb 1000]
+#     eumovie --input TILE.tif --resolution 4k --prores [--bits-per-mb 1000]
 #
 #   Fulldome 4K (4096×4096, hevc_nvenc):
-#     python eumovie.py --input TILE.tif --fulldome 4k [--fps 30] [--cq 15]
+#     eumovie --input TILE.tif --fulldome 4k [--fps 30] [--cq 15] [--zoom 1.2]
 #
 #   Fulldome 8K, ProRes 4444 master:
-#     python eumovie.py --input TILE.tif --fulldome 8k --prores [--fps 30] [--bits-per-mb 1000]
+#     eumovie --input TILE.tif --fulldome 8k --prores [--fps 30] [--bits-per-mb 1000]
 #
 # ── Keyframes ────────────────────────────────────────────────────────────────
 # Camera paths are defined in a user-editable keyframes.py. To create a
@@ -110,6 +120,7 @@ import tifffile
 from scipy.interpolate import CubicSpline, PchipInterpolator
 import importlib.util
 import shutil
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 
 def _load_keyframes():
     """
@@ -192,6 +203,13 @@ CAMERA_FOV = 60.0
 
 
 def parse_arguments():
+    try:
+        current_version = _pkg_version("eumovie")
+    except PackageNotFoundError:
+        current_version = "dev"
+
+    print(f"\n   eumovie v{current_version} (Mischa Schirmer)\n")
+
     parser = argparse.ArgumentParser(
         description="GPU-accelerated zoom/pan/rotate movie renderer for large TIFF images.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -206,10 +224,20 @@ def parse_arguments():
                              "and to ~/.config/eumovie/, then exit.")
     parser.add_argument("--fps",     type=int, default=60,
                         help="Output frame rate")
+    parser.add_argument("--zoom", type=float, default=1.0,
+                        help="Zoom modifier applied to all keyframe zoom values. "
+                             ">1 = more magnification (e.g. 1.2 = 20%% closer), "
+                             "<1 = wider field of view. "
+                             "Keyframe zoom values are divided by this factor.")
+    parser.add_argument("--speed", type=float, default=1.0,
+                        help="Speed modifier applied to all keyframe timestamps. "
+                             ">1 = faster (e.g. 2.0 = twice as fast), "
+                             "<1 = slower (e.g. 0.5 = half speed). "
+                             "Keyframe timestamps are divided by this factor.")
     parser.add_argument("--cq",      type=int, default=15,
                         help="H.264/H.265 encoder quality (12=very high, 15=high, 18=medium)")
-    parser.add_argument("--threads", type=int, default=min(os.cpu_count() // 2, 16),
-                        help="FFmpeg encoding threads")
+    parser.add_argument("--threads", type=int, default=min(max(os.cpu_count() - 1, 1), 16),
+                        help="FFmpeg encoding threads [min(cpu_count-1, 16)]")
 
     # ── Output format — mutually exclusive: flat vs fulldome ──────────────
     size_group = parser.add_mutually_exclusive_group()
@@ -228,6 +256,11 @@ def parse_arguments():
     parser.add_argument("--bits-per-mb", type=int, default=1000, dest="bits_per_mb",
                         help="ProRes quality in bits per macroblock (only with --prores). "
                              "500=proxy, 1000=broadcast, 2000=high-end master")
+
+    import sys
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
 
     args = parser.parse_args()
 
@@ -795,7 +828,7 @@ def main():
     # Account for y-flip in TIFF image coordinates with respect to FITS.
     # Keyframes are in FITS coordinates
     KEYFRAMES = [
-        (t, cx, img_h - cy, zoom, angle, tilt, bank)
+        (t / args.speed, cx, img_h - cy, zoom, angle, tilt, bank)
         for (t, cx, cy, zoom, angle, tilt, bank) in config['keyframes']
     ]
 
@@ -931,9 +964,10 @@ def main():
     times      = np.linspace(0, total_duration, total_frames, endpoint=False)
     all_cx     = cs_cx(times)
     all_cy     = cs_cy(times)
-    all_zoom   = np.clip(cs_zoom(times), 1e-4, 1.0)   # clamp: zoom must be positive and ≤ 1.0 (fully zoomed out = entire image).
+    all_zoom   = np.clip(cs_zoom(times) / args.zoom, 1e-4, 1.0)
     # zoom_native > 1.0 is only possible when output resolution exceeds source image
     # resolution, in which case zoom_native keyframes are silently capped at 1.0.
+    # Dividing by args.zoom applies the modifier: >1 zooms in, <1 zooms out.
     all_angle  = cs_angle(times)
     all_tilt   = cs_tilt(times)
     all_bank   = cs_bank(times)
