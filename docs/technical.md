@@ -42,7 +42,12 @@ frame 2: GPU→buffer0 (async) | CPU: write buffer1→pipe
 The CPU pipe write runs in a background thread. In practice the GPU is the
 bottleneck and the pipe write completes before the next frame is ready.
 
-## VRAM requirements
+## VRAM requirements (minimum)
+
+The VRAM usages listed here are the theoretical minimum. In practise,
+they may be 2x, approaching 10-11 GB for a 19200×19200 source on our
+test system with a NVIDIA RTX A2000 12GB card.
+
 
 ### Flat mode
 

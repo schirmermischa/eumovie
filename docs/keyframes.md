@@ -48,11 +48,6 @@ Each keyframe is a tuple:
 
 This matches the convention used by DS9, FITS headers, and most astronomy tools.
 It is the **opposite** of TIFF/screen coordinates (origin at upper-left, y downward).
-`eumovie` converts internally — you never need to worry about the flip.
-
-!!! tip "Finding coordinates in DS9"
-    Open your TIFF in DS9, set the coordinate readout to **Image**, and hover
-    over the feature of interest. The displayed `x, y` values are your `cx, cy`.
 
 ## Camera angles
 
